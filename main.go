@@ -27,7 +27,7 @@ var (
 func main() {
 	// 引数の定義
 	flag.StringVar(&outputDir, "output-dir", "./output", "The output directory for translated HTML/CSS files")
-	flag.StringVar(&baseURL, "url", "https://www.promptingguide.ai/", "The URL of the website to translate")
+	flag.StringVar(&baseURL, "url", "", "The URL of the website to translate")
 	flag.IntVar(&recursive, "recursive", 1, "The number of levels to follow links from the base URL")
 	flag.Parse()
 
@@ -47,7 +47,12 @@ func main() {
 	// 翻訳関数
 	translateFunc := func(text string) (string, error) {
 		ctx := context.Background()
-		client := translate.NewService(ctx, &transport.APIKey{Key: apiKey})
+		// FIXME NewService()の第2引数
+		// TODO 関数が呼ばれるたびにServiceをインスタンス作る必要はない
+		client, err := translate.NewService(ctx, &transport.APIKey{Key: apiKey})
+		if err != nil {
+			return "", err
+		}
 
 		translations, err := client.Translations.List([]string{text}, targetLang).Do()
 		if err != nil {
