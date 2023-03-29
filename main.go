@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/gocolly/colly/v2"
-	"google.golang.org/api/googleapi/transport"
-	translate "google.golang.org/api/translate/v2"
+	"google.golang.org/api/option"
+	"google.golang.org/api/translate/v2"
 )
 
 var (
@@ -23,6 +23,20 @@ var (
 	targetLang  = "ja"
 	visitedURLs = map[string]bool{}
 )
+
+// 翻訳関数
+func trans(s *translate.Service, text string) (string, error) {
+	translations, err := s.Translations.List([]string{text}, targetLang).Do()
+	if err != nil {
+		return "", err
+	}
+
+	if len(translations.Translations) > 0 {
+		return translations.Translations[0].TranslatedText, nil
+	}
+
+	return "", fmt.Errorf("no translation found")
+}
 
 func main() {
 	// 引数の定義
@@ -44,26 +58,11 @@ func main() {
 		colly.Async(true),
 	)
 
-	// 翻訳関数
-	translateFunc := func(text string) (string, error) {
-		ctx := context.Background()
-		// FIXME NewService()の第2引数
-		// TODO 関数が呼ばれるたびにServiceをインスタンス作る必要はない
-		client, err := translate.NewService(ctx, &transport.APIKey{Key: apiKey})
-		if err != nil {
-			return "", err
-		}
-
-		translations, err := client.Translations.List([]string{text}, targetLang).Do()
-		if err != nil {
-			return "", err
-		}
-
-		if len(translations.Translations) > 0 {
-			return translations.Translations[0].TranslatedText, nil
-		}
-
-		return "", fmt.Errorf("no translation found")
+	// 翻訳サービスの作成
+	translationClient, err := translate.NewService(context.Background(), option.WithAPIKey(apiKey))
+	if err != nil {
+		fmt.Println("Error creating translation service:", err)
+		return
 	}
 
 	// スクレイピングの前処理
@@ -71,7 +70,7 @@ func main() {
 		e.ForEach("*", func(_ int, e *colly.HTMLElement) {
 			text := strings.TrimSpace(e.Text)
 			if text != "" {
-				translatedText, err := translateFunc(text)
+				translatedText, err := trans(translationClient, text)
 				if err == nil {
 					e.Text = translatedText
 				} else {
